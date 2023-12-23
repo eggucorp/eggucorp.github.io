@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+
+  <head>
+    <!-- meta tag stuff -->
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+    <!-- we love bootstrap we love bootstrap  -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-GLhlTQ8iRABdZLl6O3oVMWSktQOp6b7In1Zl3/Jr59b6EGGoI1aFkw7cmDA6j6gD" crossorigin="anonymous">
+
+    <style>
+      #player {
+        visibility: visible;
+      }
+
+    </style>
+    <title>Timer</title>
+  </head>
+
+  <body style="background-color: #E6D6D6">
+    <div class="container text-center">
+      <div class="my-4">
+        <h6>Jordie T(imer)</h6>
+        <iframe src="https://free.timeanddate.com/clock/i95ow6v8/n145/tlph/fs24/fc666/tce6d6d6/pct/ftb/th1" frameborder="0" width="98" height="30" allowtransparency="true"></iframe>
+      </div>
+    </div>
+
+    <div id="player"></div>
+    <!-- we love bootstrap we love bootstrap  -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js" integrity="sha384-w76AqPfDkMBDXo30jS1Sgez6pr3x5MlQ1ZAGC+nuZB+EYdgRZgiwxhTBTkF7CXvN" crossorigin="anonymous"></script>
+
+
+
+  </body>
+
+
+  <script>
+    // Load the IFrame Player API code asynchronously.
+    var tag = document.createElement('script');
+    tag.src = "https://www.youtube.com/iframe_api";
+    var firstScriptTag = document.getElementsByTagName('script')[0];
+    firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+
+    // Create an <iframe> (and YouTube player) after the API code downloads.
+    var player;
+
+    function onYouTubeIframeAPIReady() {
+      player = new YT.Player('player', {
+        height: '100',
+        width: '100',
+        playerVars: {
+          listType: 'playlist',
+          controls: 0, // This hides all the player controls
+          allowfullscreen: 0,
+          list: 'PL25187AAF280D3C94' // Replace with your YouTube playlist ID
+        },
+        events: {
+          'onReady': onPlayerReady,
+          'onStateChange': onPlayerStateChange
+        }
+      });
+    }
+
+    function onPlayerReady(event) {
+
+    }
+
+    function onPlayerStateChange(event) {
+      if (event.data == YT.PlayerState.PLAYING) {
+        // Hide the player once the video starts playing
+        document.getElementById('player').style.visibility = 'hidden';
+      }
+    }
+
+    document.addEventListener('keydown', function(event) {
+      if (!player) {
+        return; // Exit if player is not initialized
+      }
+
+      switch (event.key) {
+        case '[': // Decrease volume
+          var currentVolume = player.getVolume();
+          player.setVolume(Math.max(currentVolume - 10, 0)); // Decrease volume by 10%
+          break;
+        case ']': // Increase volume
+          var currentVolume = player.getVolume();
+          player.setVolume(Math.min(currentVolume + 10, 100)); // Increase volume by 10%
+          break;
+        case 'm': // Mute/unmute
+          if (player.isMuted()) {
+            player.unMute();
+          } else {
+            player.mute();
+          }
+          break;
+      }
+
+      if (event.key === 'n') { // 'n' key for next video
+        player.nextVideo(); // Skips to the next video in the playlist
+      }
+
+    });
+
+  </script>
+
+</html>

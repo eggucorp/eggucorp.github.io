@@ -34,6 +34,8 @@
         const timerDisplay = document.getElementById("timer");
         let countdownInterval;
         let beepInterval;
+        const timeInterval = 10 // in seconds
+        
 
         // Format time mm:ss
         function formatTime(seconds) {
@@ -43,7 +45,7 @@
         }
 
         function startTimers() {
-            let timeLeft = 120; // seconds
+            let timeLeft = timeInterval; 
 
             timerDisplay.textContent = formatTime(timeLeft);
 
@@ -54,9 +56,9 @@
 
             beepInterval = setInterval(() => {
                 beep.play();
-                timeLeft = 120; // Reset countdown
+                timeLeft = timeInterval;
                 timerDisplay.textContent = formatTime(timeLeft);
-            }, 120000); // 2 minutes
+            }, timeInterval * 1000)
         }
 
         // Trigger on first click

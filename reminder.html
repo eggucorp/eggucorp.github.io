@@ -15,8 +15,12 @@
 <body style="background-color: #E6D6D6">
     <div class="container text-center">
         <div class="my-4">
-            <img src="https://t3.ftcdn.net/jpg/12/52/14/68/360_F_1252146853_HQnjoKMJjg3PrrAS6Fub6OdMC8oKivXs.jpg" class="img-fluid" alt="Beep Image">
+            <img src="https://t3.ftcdn.net/jpg/12/52/14/68/360_F_1252146853_HQnjoKMJjg3PrrAS6Fub6OdMC8oKivXs.jpg"
+                class="img-fluid" alt="Beep Image">
         </div>
+
+        <h2 id="timer">2:00</h2>
+        <p>(Beep every 2 minutes)</p>
     </div>
 
     <!-- Audio element -->
@@ -25,15 +29,41 @@
         Your browser does not support the audio element.
     </audio>
 
-    <!-- JavaScript for beep -->
     <script>
         const beep = document.getElementById("beep-sound");
+        const timerDisplay = document.getElementById("timer");
+        let countdownInterval;
+        let beepInterval;
 
-        // Wait for first user interaction
-        document.addEventListener('click', () => {
-            setInterval(() => {
+        // Format time mm:ss
+        function formatTime(seconds) {
+            const mins = Math.floor(seconds / 60).toString().padStart(2, '0');
+            const secs = (seconds % 60).toString().padStart(2, '0');
+            return `${mins}:${secs}`;
+        }
+
+        function startTimers() {
+            let timeLeft = 120; // seconds
+
+            timerDisplay.textContent = formatTime(timeLeft);
+
+            countdownInterval = setInterval(() => {
+                timeLeft--;
+                timerDisplay.textContent = formatTime(timeLeft);
+            }, 1000);
+
+            beepInterval = setInterval(() => {
                 beep.play();
-            }, 2 * 60 * 1000); // 2 minutes in milliseconds
+                timeLeft = 120; // Reset countdown
+                timerDisplay.textContent = formatTime(timeLeft);
+            }, 120000); // 2 minutes
+        }
+
+        // Trigger on first click
+        document.addEventListener('click', () => {
+            if (!countdownInterval && !beepInterval) {
+                startTimers();
+            }
         }, { once: true });
     </script>
 

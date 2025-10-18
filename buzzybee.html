@@ -1,11 +1,11 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <!-- meta tag stuff -->
+  <!-- meta -->
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
 
-  <!-- we love bootstrap we love bootstrap  -->
+  <!-- bootstrap -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css"
         rel="stylesheet"
         integrity="sha384-GLhlTQ8iRABdZLl6O3oVMWSktQOp6b7In1Zl3/Jr59b6EGGoI1aFkw7cmDA6j6gD"
@@ -15,7 +15,7 @@
   <style>
     body { background-color: #E6D6D6; }
     .btn-big { padding: 0.9rem 1.4rem; font-size: 1.1rem; }
-    .kbd { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+    .kbd { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New", monospace; }
   </style>
 </head>
 
@@ -38,7 +38,10 @@
     </div>
   </div>
 
-  <!-- we love bootstrap we love bootstrap  -->
+  <!-- hidden audio source -->
+  <audio id="beep" src="./beep.mp3" preload="auto"></audio>
+
+  <!-- bootstrap js -->
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"
           integrity="sha384-w76AqPfDkMBDXo30jS1Sgez6pr3x5MlQ1ZAGC+nuZB+EYdgRZgiwxhTBTkF7CXvN"
           crossorigin="anonymous"></script>
@@ -46,6 +49,7 @@
   <script type="module">
     import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
+    // your Supabase project (public anon key is fine)
     const SUPABASE_URL  = "https://cjtekuwtemjbowncfphc.supabase.co";
     const SUPABASE_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNqdGVrdXd0ZW1qYm93bmNmcGhjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjA3NTYyODcsImV4cCI6MjA3NjMzMjI4N30.XETPr5DmzCUA2eM4ldzD5Y-8gDMdYdyp6VTJj2fVzwU";
 
@@ -56,49 +60,43 @@
     const enableBtn  = document.getElementById("enable");
     const presenceEl = document.getElementById("presence");
     const volEl      = document.getElementById("vol");
+    const baseAudio  = document.getElementById("beep");
 
-    // --- Audio setup (browser autoplay policies require a gesture) ---
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
-    let volume = 100;   // 0..100
+    // volume state
+    let volume = 100; // 0..100
     let muted  = false;
-
-    function updateVolLabel() {
-      volEl.textContent = `Vol: ${muted ? 0 : volume}%`;
-    }
+    const updateVolLabel = () => volEl.textContent = `Vol: ${muted ? 0 : volume}%`;
     updateVolLabel();
 
+    // play beep using your mp3; clone so rapid clicks can overlap
     function playBeep() {
-      if (ctx.state !== "running" || muted || volume === 0) return;
-      const osc  = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = "square";
-      osc.frequency.value = 880;             // A5
-      const amp = 0.30 * (volume / 100);     // scale loudness
-      gain.gain.setValueAtTime(amp, ctx.currentTime);
-      osc.connect(gain).connect(ctx.destination);
-      osc.start();
-      osc.stop(ctx.currentTime + 0.25);
+      if (muted || (volume === 0)) return;
+      const a = baseAudio.cloneNode(true);
+      a.volume = volume / 100;
+      a.play().catch(() => {}); // ignore autoplay errors; "Enable sound" handles unlock
     }
 
+    // one user gesture to unlock audio on all browsers
     enableBtn.addEventListener("click", async () => {
-      await ctx.resume();
-      enableBtn.classList.replace("btn-secondary", "btn-success");
-      enableBtn.textContent = "Sound enabled";
+      try {
+        await baseAudio.play();
+        baseAudio.pause();
+        baseAudio.currentTime = 0;
+        enableBtn.classList.replace("btn-secondary", "btn-success");
+        enableBtn.textContent = "Sound enabled";
+      } catch (_) {}
     });
 
-    // --- Realtime channel (broadcast + presence) ---
+    // realtime: broadcast + presence
     async function main() {
       const ch = sb.channel("buzzy-bee", {
-        config: {
-          broadcast: { self: true },
-          presence:  { key: crypto.randomUUID() }
-        }
+        config: { broadcast: { self: true }, presence: { key: crypto.randomUUID() } }
       });
 
       ch.on("broadcast", { event: "buzz" }, () => playBeep());
 
       ch.on("presence", { event: "sync" }, () => {
-        const state = ch.presenceState(); // { key: [metas...] }
+        const state = ch.presenceState();
         const count = Object.values(state).reduce((n, arr) => n + arr.length, 0);
         presenceEl.textContent = `Listeners: ${count}`;
       });
@@ -111,38 +109,26 @@
         }
       });
 
-      // Click to buzz (with simple cooldown)
+      // click to buzz (cooldown)
       let last = 0;
       buzzBtn.addEventListener("click", async () => {
         const now = Date.now();
-        if (now - last < 100) return; // 0.8s cooldown
+        if (now - last < 800) return;
         last = now;
-        playBeep(); // local feedback
+        playBeep(); // local
         await ch.send({ type: "broadcast", event: "buzz", payload: { at: now } });
       });
 
-      // Keyboard shortcuts
-      document.addEventListener("keydown", (event) => {
-        switch (event.key) {
-          case "b":
-            buzzBtn.click();
-            break;
-          case "[":
-            volume = Math.max(volume - 10, 0);
-            updateVolLabel();
-            break;
-          case "]":
-            volume = Math.min(volume + 10, 100);
-            updateVolLabel();
-            break;
-          case "m":
-            muted = !muted;
-            updateVolLabel();
-            break;
+      // keyboard shortcuts
+      document.addEventListener("keydown", (e) => {
+        switch (e.key) {
+          case "b": buzzBtn.click(); break;
+          case "[": volume = Math.max(volume - 10, 0); updateVolLabel(); break;
+          case "]": volume = Math.min(volume + 10, 100); updateVolLabel(); break;
+          case "m": muted = !muted; updateVolLabel(); break;
         }
       });
     }
-
     main();
   </script>
 </body>

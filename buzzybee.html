@@ -1,16 +1,12 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <!-- meta -->
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-
-  <!-- bootstrap -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css"
         rel="stylesheet"
         integrity="sha384-GLhlTQ8iRABdZLl6O3oVMWSktQOp6b7In1Zl3/Jr59b6EGGoI1aFkw7cmDA6j6gD"
         crossorigin="anonymous">
-
   <title>buzzy bee</title>
   <style>
     body { background-color: #E6D6D6; }
@@ -28,20 +24,21 @@
 
     <div class="d-flex justify-content-center gap-2">
       <button id="enable" class="btn btn-secondary btn-big">Enable sound</button>
-      <button id="buzz" class="btn btn-danger btn-big" disabled>BUZZ!</button>
+      <button id="buzz" class="btn btn-danger btn-big" disabled>🐽!</button>
+      <button id="discord" class="btn btn-danger btn-big" disabled>✉️!</button>
     </div>
 
     <div class="mt-3 small">
       <span id="presence">Listeners: 0</span> ·
       <span id="vol">Vol: 100%</span>
-      <span class="text-muted">(keys: <span class="kbd">[</span>/<span class="kbd">]</span> volume, <span class="kbd">m</span> mute, <span class="kbd">b</span> buzz)</span>
+      <span class="text-muted">(keys: <span class="kbd">[</span>/<span class="kbd">]</span> volume, <span class="kbd">m</span> mute, <span class="kbd">b</span> buzz, <span class="kbd">d</span> discord)</span>
     </div>
   </div>
 
-  <!-- hidden audio source -->
+  <!-- audio sources in repo root -->
   <audio id="beep" src="./beep.mp3" preload="auto"></audio>
+  <audio id="discord-audio" src="./discord.mp3" preload="auto"></audio>
 
-  <!-- bootstrap js -->
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"
           integrity="sha384-w76AqPfDkMBDXo30jS1Sgez6pr3x5MlQ1ZAGC+nuZB+EYdgRZgiwxhTBTkF7CXvN"
           crossorigin="anonymous"></script>
@@ -49,7 +46,6 @@
   <script type="module">
     import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-    // your Supabase project (public anon key is fine)
     const SUPABASE_URL  = "https://cjtekuwtemjbowncfphc.supabase.co";
     const SUPABASE_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNqdGVrdXd0ZW1qYm93bmNmcGhjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjA3NTYyODcsImV4cCI6MjA3NjMzMjI4N30.XETPr5DmzCUA2eM4ldzD5Y-8gDMdYdyp6VTJj2fVzwU";
 
@@ -57,34 +53,35 @@
 
     const statusEl   = document.getElementById("status");
     const buzzBtn    = document.getElementById("buzz");
+    const discordBtn = document.getElementById("discord");
     const enableBtn  = document.getElementById("enable");
     const presenceEl = document.getElementById("presence");
     const volEl      = document.getElementById("vol");
-    const baseAudio  = document.getElementById("beep");
+    const beepAudio  = document.getElementById("beep");
+    const discordAudio = document.getElementById("discord-audio");
 
-    // volume state
-    let volume = 100; // 0..100
-    let muted  = false;
+    let volume = 100, muted = false;
     const updateVolLabel = () => volEl.textContent = `Vol: ${muted ? 0 : volume}%`;
     updateVolLabel();
 
-    // play beep using your mp3; clone so rapid clicks can overlap
-    function playBeep() {
-      if (muted || (volume === 0)) return;
-      const a = baseAudio.cloneNode(true);
+    function play(srcEl) {
+      if (muted || volume === 0) return;
+      const a = srcEl.cloneNode(true);
       a.volume = volume / 100;
-      a.play().catch(() => {}); // ignore autoplay errors; "Enable sound" handles unlock
+      a.play().catch(() => {});
     }
+    const playBeep    = () => play(beepAudio);
+    const playDiscord = () => play(discordAudio);
 
-    // one user gesture to unlock audio on all browsers
+    // unlock audio (fix: use real elements, not baseAudio)
     enableBtn.addEventListener("click", async () => {
       try {
-        await baseAudio.play();
-        baseAudio.pause();
-        baseAudio.currentTime = 0;
+        for (const el of [beepAudio, discordAudio]) {
+          await el.play(); el.pause(); el.currentTime = 0;
+        }
         enableBtn.classList.replace("btn-secondary", "btn-success");
         enableBtn.textContent = "Sound enabled";
-      } catch (_) {}
+      } catch {}
     });
 
     // realtime: broadcast + presence
@@ -93,7 +90,9 @@
         config: { broadcast: { self: true }, presence: { key: crypto.randomUUID() } }
       });
 
-      ch.on("broadcast", { event: "buzz" }, () => playBeep());
+      // receive events
+      ch.on("broadcast", { event: "buzz"    }, () => playBeep());
+      ch.on("broadcast", { event: "discord" }, () => playDiscord());
 
       ch.on("presence", { event: "sync" }, () => {
         const state = ch.presenceState();
@@ -105,24 +104,36 @@
         if (s === "SUBSCRIBED") {
           statusEl.textContent = 'Connected. Click "Enable sound" once in each tab.';
           buzzBtn.disabled = false;
+          discordBtn.disabled = false;     // enable second button
           ch.track({ online: true });
         }
       });
 
-      // click to buzz (cooldown)
+      // clicks (with cooldown)
       let last = 0;
-      buzzBtn.addEventListener("click", async () => {
+      function cooldown() {
         const now = Date.now();
-        if (now - last < 800) return;
-        last = now;
-        playBeep(); // local
-        await ch.send({ type: "broadcast", event: "buzz", payload: { at: now } });
+        if (now - last < 800) return true;
+        last = now; return false;
+      }
+
+      buzzBtn.addEventListener("click", async () => {
+        if (cooldown()) return;
+        playBeep();
+        await ch.send({ type: "broadcast", event: "buzz" });
       });
 
-      // keyboard shortcuts
+      discordBtn.addEventListener("click", async () => {
+        if (cooldown()) return;
+        playDiscord();
+        await ch.send({ type: "broadcast", event: "discord" });
+      });
+
+      // keybinds
       document.addEventListener("keydown", (e) => {
         switch (e.key) {
           case "b": buzzBtn.click(); break;
+          case "d": discordBtn.click(); break;
           case "[": volume = Math.max(volume - 10, 0); updateVolLabel(); break;
           case "]": volume = Math.min(volume + 10, 100); updateVolLabel(); break;
           case "m": muted = !muted; updateVolLabel(); break;
